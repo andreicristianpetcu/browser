@@ -5,19 +5,41 @@ import { PlatformUtilsService } from 'jslib/abstractions/platformUtils.service';
 export default class WebRequestBackground {
     private pendingAuthRequests: any[] = [];
     private webRequest: any;
+    private webNavigation: any;
     private isFirefox: boolean;
 
     constructor(platformUtilsService: PlatformUtilsService, private cipherService: CipherService,
         private lockService: LockService) {
         this.webRequest = (window as any).chrome.webRequest;
+        this.webNavigation = (window as any).chrome.webNavigation;
         this.isFirefox = platformUtilsService.isFirefox();
     }
 
     async init() {
+        this.webRequest.onCompleted.addListener(async (e: any) => {
+            const isNotificationEnabled = false;
+            if (isNotificationEnabled && e.tabId > 0) {
+                await chrome.tabs.executeScript(e.tabId, {
+                    runAt: 'document_start', allFrames: true,
+                    file: 'content/autofill.js'
+                });
+                await chrome.tabs.executeScript(e.tabId, {
+                    runAt: 'document_start', allFrames: true,
+                    file: 'content/autofiller.js'
+                });
+                await chrome.tabs.executeScript(e.tabId, {
+                    runAt: 'document_start', allFrames: true,
+                    file: 'content/notificationBar.js'
+                });
+                await chrome.tabs.executeScript(e.tabId, {
+                    runAt: 'document_start', allFrames: false,
+                    file: 'content/shortcuts.js'
+                });
+            }
+        }, { urls: ['http://*/*', 'https://*/*', 'file:///*'] }); console.log('2');
         if (!this.webRequest || !this.webRequest.onAuthRequired) {
             return;
         }
-
         this.webRequest.onAuthRequired.addListener(async (details: any, callback: any) => {
             if (!details.url || this.pendingAuthRequests.indexOf(details.requestId) !== -1) {
                 if (callback) {
